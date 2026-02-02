@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>رهف - مركز الكون</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@700&family=Tajawal:wght@300;700&display=swap');
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Tajawal', sans-serif;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            pointer-events: none;
+            text-align: right;
+        }
+
+        .title {
+            font-family: 'Aref Ruqaa', serif;
+            font-size: 3rem;
+            color: #fff;
+            text-shadow: 0 0 20px #ffaa00;
+            margin: 0;
+        }
+
+        .subtitle {
+            color: #ccc;
+            font-size: 1rem;
+            margin-top: 5px;
+        }
+
+        .controls-hint {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: #888;
+            font-size: 0.8rem;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .signature {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.9rem;
+            z-index: 20;
+            border-left: 3px solid #ffaa00;
+            padding-left: 10px;
+            font-family: 'Tajawal';
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <h1 class="title">مجرّة رهف</h1>
+        <div class="subtitle">حيث تدور الكواكب حول نُورك</div>
+    </div>
+
+    <div class="controls-hint">
+        استخدم الماوس للتدوير والتقريب
+    </div>
+
+    <div class="signature">من إعداد قيس جازي</div>
+
+    <div id="canvas-container"></div>
+
+    <!-- مكتبات Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Post Processing للتوهج -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+    <script>
+        // --- إعداد المشهد ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x000000, 0.00003); // ضباب خفيف جداً للعمق
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 20000);
+        camera.position.set(0, 150, 400); // موقع الكاميرا لرؤية النظام
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        // تمكين الظلال
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // التحكم بالكاميرا (OrbitControls)
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 50;
+        controls.maxDistance = 1500;
+
+        // --- Post Processing (Bloom) ---
+        const renderScene = new THREE.RenderPass(scene, camera);
+        const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        bloomPass.threshold = 0;
+        bloomPass.strength = 1.2; // قوة التوهج
+        bloomPass.radius = 0.5;
+
+        const composer = new THREE.EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
+
+
+        // --- النجوم (الخلفية) ---
+        function createStars() {
+            const geometry = new THREE.BufferGeometry();
+            const vertices = [];
+            for (let i = 0; i < 5000; i++) {
+                vertices.push(THREE.MathUtils.randFloatSpread(4000)); // x
+                vertices.push(THREE.MathUtils.randFloatSpread(4000)); // y
+                vertices.push(THREE.MathUtils.randFloatSpread(4000)); // z
+            }
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            const material = new THREE.PointsMaterial({ color: 0xffffff, size: 2, transparent: true, opacity: 0.8 });
+            const stars = new THREE.Points(geometry, material);
+            scene.add(stars);
+        }
+        createStars();
+
+
+        // --- الشمس (رهف) ---
+        // سنصنع "سبرايت" نصي لاسم رهف + كرة مضيئة
+        function createTextTexture(text, color) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.font = 'bold 100px "Aref Ruqaa", sans-serif';
+            ctx.fillStyle = color;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            // إضافة توهج للنص
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 20;
+            ctx.fillText(text, 256, 128);
+            
+            const tex = new THREE.CanvasTexture(canvas);
+            return tex;
+        }
+
+        const sunGroup = new THREE.Group();
+        scene.add(sunGroup);
+
+        // 1. كرة الشمس (للتوهج)
+        const sunGeo = new THREE.SphereGeometry(15, 32, 32);
+        const sunMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+        const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+        sunGroup.add(sunMesh);
+
+        // 2. اسم رهف
+        const rahafTex = createTextTexture('رهف', '#ffffff');
+        const rahafMat = new THREE.SpriteMaterial({ map: rahafTex, transparent: true, depthTest: false });
+        const rahafSprite = new THREE.Sprite(rahafMat);
+        rahafSprite.scale.set(80, 40, 1);
+        sunGroup.add(rahafSprite);
+
+        // 3. مصدر الضوء الرئيسي
+        const sunlight = new THREE.PointLight(0xffffff, 2, 3000);
+        sunGroup.add(sunlight);
+        
+        // ضوء محيطي خافت للكواكب في الظل
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.3); 
+        scene.add(ambientLight);
+
+
+        // --- وظائف مساعدة لإنشاء الكواكب ---
+        
+        // دالة لإنشاء تيكستشر كوكب برمجياً (لتجنب الصور الخارجية)
+        function createPlanetTexture(type, color1, color2) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            
+            const gradient = ctx.createLinearGradient(0, 0, 0, 256);
+            gradient.addColorStop(0, color1);
+            gradient.addColorStop(1, color2);
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0,0,512,256);
+
+            // إضافة تفاصيل (ضجيج)
+            if(type === 'noise') {
+                for(let i=0; i<1000; i++) {
+                    ctx.fillStyle = `rgba(255,255,255,${Math.random()*0.1})`;
+                    ctx.beginPath();
+                    ctx.arc(Math.random()*512, Math.random()*256, Math.random()*10, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            } else if (type === 'bands') { // للمشتري وزحل
+                for(let i=0; i<256; i+=10) {
+                    ctx.fillStyle = `rgba(0,0,0,${Math.random()*0.1})`;
+                    ctx.fillRect(0, i, 512, Math.random()*10);
+                }
+            }
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const planets = [];
+
+        function createPlanet(name, size, distance, speed, textureType, color1, color2, ringData) {
+            const planetGroup = new THREE.Group();
+            scene.add(planetGroup);
+
+            // 1. المسار (المدار)
+            const orbitGeo = new THREE.RingGeometry(distance - 0.2, distance + 0.2, 128);
+            const orbitMat = new THREE.MeshBasicMaterial({ color: 0xffffff, opacity: 0.1, transparent: true, side: THREE.DoubleSide });
+            const orbit = new THREE.Mesh(orbitGeo, orbitMat);
+            orbit.rotation.x = Math.PI / 2;
+            scene.add(orbit);
+
+            // 2. الكوكب
+            const tex = createPlanetTexture(textureType, color1, color2);
+            const geo = new THREE.SphereGeometry(size, 32, 32);
+            const mat = new THREE.MeshStandardMaterial({ 
+                map: tex, 
+                roughness: 0.8,
+                metalness: 0.1 
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            
+            // إضافة الكوكب للمجموعة الخاصة به (للتدوير حول الشمس)
+            // ملاحظة: سنحرك الكوكب بتغيير position الـ Mesh وتدوير الـ PlanetGroup أو بحسابات Math في الأنيميشن
+            // الأفضل: نضع الكوكب في نقطة البداية ونحرك موقعه
+            mesh.position.x = distance;
+            planetGroup.add(mesh);
+
+            // 3. الحلقات (إذا وجدت - مثل زحل)
+            if (ringData) {
+                const ringGeo = new THREE.RingGeometry(size * 1.4, size * 2.2, 64);
+                // تيكستشر للحلقة
+                const ringCanvas = document.createElement('canvas');
+                ringCanvas.width = 128; ringCanvas.height = 32;
+                const rCtx = ringCanvas.getContext('2d');
+                rCtx.fillStyle = '#fff';
+                rCtx.fillRect(0,0,128,32);
+                for(let i=0; i<5; i++) {
+                    rCtx.clearRect(20 + i*20, 0, 5, 32); // تفريغ خطوط
+                }
+                const ringTex = new THREE.CanvasTexture(ringCanvas);
+                
+                const ringMat = new THREE.MeshStandardMaterial({ 
+                    map: ringTex, color: ringData.color, side: THREE.DoubleSide, transparent: true, opacity: 0.8 
+                });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.rotation.x = Math.PI / 2 + 0.2; // إمالة قليلة
+                ring.position.x = distance; // نفس موقع الكوكب
+                planetGroup.add(ring);
+                
+                // ربط الحلقة بالكوكب لتدور معه
+                mesh.ring = ring; 
+            }
+
+            // تخزين البيانات للتحريك
+            planets.push({
+                mesh: mesh,
+                ring: mesh.ring, // مرجع للحلقة
+                distance: distance,
+                speed: speed,
+                angle: Math.random() * Math.PI * 2,
+                rotationSpeed: 0.01 / size // سرعة دوران الكوكب حول نفسه
+            });
+        }
+
+        // --- إنشاء الكواكب ---
+        // (الاسم، الحجم، المسافة، السرعة، نوع الخامة، لون1، لون2، بيانات الحلقات)
+        
+        // 1. عطارد
+        createPlanet('Mercury', 3, 40, 0.04, 'noise', '#aaaaaa', '#555555');
+        // 2. الزهرة
+        createPlanet('Venus', 5, 60, 0.03, 'noise', '#eecb8b', '#d4a017');
+        // 3. الأرض
+        createPlanet('Earth', 5.5, 90, 0.02, 'noise', '#2233ff', '#006600');
+        // 4. المريخ
+        createPlanet('Mars', 4, 120, 0.018, 'noise', '#ff4500', '#8b0000');
+        // 5. المشتري
+        createPlanet('Jupiter', 14, 180, 0.008, 'bands', '#d9a86c', '#8c6e4e');
+        // 6. زحل (مع حلقات)
+        createPlanet('Saturn', 12, 250, 0.006, 'bands', '#f4d03f', '#b7950b', { color: '#f4d03f' });
+        // 7. أورانوس
+        createPlanet('Uranus', 8, 310, 0.004, 'noise', '#7fffd4', '#00ced1');
+        // 8. نبتون
+        createPlanet('Neptune', 8, 360, 0.003, 'noise', '#4169e1', '#00008b');
+
+
+        // --- التفاعل والأنيميشن ---
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+
+            // 1. تدوير الشمس (اسم رهف يواجه الكاميرا دائماً)
+            // rahafSprite.lookAt(camera.position); // السبرايت يفعل ذلك تلقائياً عادة
+            
+            // تدوير هالة الشمس
+            sunMesh.rotation.y += 0.005;
+
+            // 2. تحريك الكواكب
+            planets.forEach(p => {
+                // تحديث الزاوية (المدار)
+                p.angle += p.speed;
+                
+                // حساب الموقع الجديد
+                const x = Math.cos(p.angle) * p.distance;
+                const z = Math.sin(p.angle) * p.distance;
+                
+                p.mesh.position.set(x, 0, z);
+                
+                // تدوير الكوكب حول نفسه
+                p.mesh.rotation.y += p.rotationSpeed;
+
+                // تحريك الحلقة مع الكوكب إذا وجدت
+                if(p.ring) {
+                    p.ring.position.set(x, 0, z);
+                    // p.ring.rotation.z += 0.001; // تدوير الحلقة ببطء
+                }
+            });
+
+            controls.update();
+            composer.render();
+        }
+
+        animate();
+
+    </script>
+</body>
+</html>
+
